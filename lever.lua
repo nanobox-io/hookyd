@@ -126,6 +126,9 @@ function Lever:find_route(method,url)
 end
 
 function Lever:listen(port,ip)
+	if not ip then
+		ip = "127.0.0.1"
+	end
 	local lever = self
 	self.server = http.createServer(function (req, res)
 	  
@@ -145,7 +148,7 @@ function Lever:listen(port,ip)
 	  end
 
 	end)
-	-- print("Server listening at http://localhost:8080/")
+	print("Server listening at http://"..ip..":"..port.."/")
 	self.server:listen(port,ip)
 end
 
