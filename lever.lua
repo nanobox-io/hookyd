@@ -1,4 +1,4 @@
--- -*- mode: lua; tab-width: 2; indent-tabs-mode: 1; st-rulers: [70] -*-
+-- -*- mode: lua tab-width: 2 indent-tabs-mode: 1 st-rulers: [70] -*-
 -- vim: ts=4 sw=4 ft=lua noet
 ---------------------------------------------------------------------
 -- @author Daniel Barney <daniel@pagodabox.com>
@@ -11,47 +11,43 @@
 
 local http = require('http')
 
-local Lever = {};
-Lever.__index = Lever;
+local Lever = {}
+Lever.__index = Lever
 
 function Lever.new ()
 	local self = {
-		cbs = {}};
-    self = setmetatable(self, Lever);
-    return self;
+		cbs = {}}
+    self = setmetatable(self, Lever)
+    return self
 end
 
 function Lever:get(path,callback)
-    self:add_route('GET',path,callback);
+    self:add_route('/GET',path,callback)
 end
 
 function Lever:put(path,callback)
-    self:add_route('PUT',path,callback);
+    self:add_route('/PUT',path,callback)
 end
 
 function Lever:post(path,callback)
-    self:add_route('POST',path,callback);
+    self:add_route('/POST',path,callback)
 end
 
 function Lever:delete(path,callback)
-    self:add_route('DELETE',path,callback);
+    self:add_route('/DELETE',path,callback)
 end
 
 function Lever:all(path,callback)
-    self:add_route('?',path,callback);
+    self:add_route('?',path,callback)
 end
 
 function Lever:add_route(method,path,callback)
-    local cbs = self.cbs[method]
-    if not cbs then
-    	cbs = {}
-    	self.cbs[method] = cbs
-    end
+    local cbs = self.cbs
     local fields = {}
     local matches = {}
-    path = path:lower();
+    path = path:lower()
     for c in path:gmatch("/[^/]*") do
-    	-- print("test:",c,c:sub(2,2));
+    	-- print("test:",c,c:sub(2,2))
     	if c:sub(2,2) == "?" then
     		-- print("matching",path,c)
     		
@@ -65,84 +61,91 @@ function Lever:add_route(method,path,callback)
     end
 
     local node = cbs
-    local elem;
+    local elem
     for index,elem in ipairs(fields) do
-    	-- print("path",path,elem);
-    	local tmp = node[elem];
+    	-- print("path",path,elem)
+    	local tmp = node[elem]
     	if not tmp then
-    		tmp = {};
-    		node[elem] = tmp;
+    		tmp = {}
+    		node[elem] = tmp
     	end
-    	node = tmp;
+    	node = tmp
     end
-
+    if not node[method] then
+    	node[method] = {}
+    	node = node[method]
+    end
+    if method == '?' then
+    	matches[#matches + 1] = "priv__method"
+    end
     node.callback = callback
-    node.matches = matches;
+    node.matches = matches
 
 
 end
 
 function Lever:find_route(method,url)
-	-- print("method",method);
-	local fields = {method};
+	-- print("method",method)
+	local fields = {}
 	for c in url:gmatch("/[^/]*") do
-    	fields[#fields + 1] = c
-    end
+  	fields[#fields + 1] = c
+  end
+  fields[#fields + 1] = "/" .. method
 
-    local node = self.cbs
-    local elem
-    local matches = {}
+  local node = self.cbs
+  local elem
+  local matches = {}
 
 	for index,elem in ipairs(fields) do
-		-- print("checking",elem);
+		-- print("checking",elem)
     	local tmp = node[elem]
     	if (not tmp) and node["?"] then
     		matches[#matches + 1] = elem:sub(2,elem:len())
-    		-- print("match?",elem,matches[#matches]);
+    		-- print("match?",elem,matches[#matches])
     		tmp = node["?"]
     	end
     	if not tmp then
-			return nil;
+			return nil
     	end
     	node = tmp
     end
 
     if #node.matches == #matches then
-    	-- print("matched!",#matches);
+    	-- print("matched!",#matches)
     	local env = {}
     	for index in ipairs(matches) do
     		-- print ("adding",node.matches[index],index,matches[index])
-    		env[node.matches[index]] = matches[index];
+    		env[node.matches[index]] = matches[index]
     	end
     	return node.callback, env
     else
-    	-- print("didn't match...");
-    	return nil;
+    	-- print("didn't match...")
+    	return nil
     end
 
 end
 
 function Lever:listen(port,ip)
-	local lever = self;
+	local lever = self
 	self.server = http.createServer(function (req, res)
 	  
 	  res:on("error", function(err)
 	    msg = tostring(err)
-	    print("Error while sending a response: " .. msg)
+	    -- print("Error while sending a response: " .. msg)
 	  end)
 
 	  local callback, env = lever:find_route(req.method,req.url)
 	  
 	  if callback then
-	  	req.env = env;
-	    callback(req,res);
+	  	req.env = env
+	    callback(req,res)
 	  else
 	    res:writeHead(404,{})
 	    res:finish()
 	  end
 
 	end)
-	print("Server listening at http://localhost:8080/")
+	-- print("Server listening at http://localhost:8080/")
 	self.server:listen(port,ip)
 end
 
