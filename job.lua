@@ -49,11 +49,16 @@ function Job.attach (hook,payload,cb)
 end
 
 function Job:run()
-  local child = spawn('echo', {self.hook,self.payload}, {})
+  local child = spawn('hooky', {self.hook,self.payload})
   local response = {}
 
   -- eat up all chunks of the response
   child.stdout:on('data', function(chunk)
+    response[#response + 1] = chunk
+  end)
+
+  -- eat up all chunks of the response
+  child.stderr:on('data', function(chunk)
     response[#response + 1] = chunk
   end)
 

@@ -64,9 +64,13 @@ end
 
 
 -- routing endpoints
-lever:get("/ping",ping)
+lever:all("/ping",ping)
 lever:post("/hooks/?hook_id",run_hook)
 lever:put("/hooks/?hook_id",run_hook)
 
 -- start server
 lever:listen(8080)
+
+process:on('error', function(err)
+	p("global error: ",{err=err})
+end)
