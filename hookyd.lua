@@ -10,8 +10,9 @@
 -- Created :   3 Sept 2014 by Daniel Barney <daniel@pagodabox.com>
 ---------------------------------------------------------------------
 
-local JSON  = require('json')
+local JSON  = require("json")
 local table = require("table")
+local fs    = require("fs")
 local Lever = require("./lever")
 local Job   = require("./job")
 
@@ -48,7 +49,7 @@ function run_hook(req,res)
 	    chunks = nil;
 
 	    -- attach to a job
-	    Job.attach(req.env.hook_id,payload,function(code,body)
+	    Job.attach(lever.user.hooky,req.env.hook_id,payload,function(code,body)
 
 	      -- send response
 	      local response = JSON.stringify({code = code, body = body})
@@ -68,9 +69,31 @@ lever:all("/ping",ping)
 lever:post("/hooks/?hook_id",run_hook)
 lever:put("/hooks/?hook_id",run_hook)
 
--- start server
-lever:listen(8080)
+function validate(config)
+	local passed = true
 
-process:on('error', function(err)
-	p("global error: ",{err=err})
+	if not config.hooky then
+		print("hooky executable is missing in config file")
+		passed = false
+	end
+
+	return passed
+end
+
+fs.readFile("/opt/local/etc/hookyd/hookyd.conf",function(err,data)
+	if not err then
+		lever.user = JSON.parse(data)
+
+		if validate(lever.user) then
+
+			-- start server
+			lever:listen(8080)
+
+			process:on('error', function(err)
+				p("global error: ",{err=err})
+			end)
+		end
+	else
+		p("unable to read config file",err)
+	end
 end)

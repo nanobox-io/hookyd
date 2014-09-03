@@ -21,11 +21,12 @@ Job.__index = Job
 -- storage of all running jobs
 local jobs = {}
 
-function Job.attach (hook,payload,cb)
+function Job.attach (hooky,hook,payload,cb)
   local self = jobs[hook]
   if not self then
     -- this is how objects are built in lua
     self = {
+	    hooky = hooky,
       hook = hook,
       payload = payload,
       listeners = Emitter:new()}
@@ -49,7 +50,7 @@ function Job.attach (hook,payload,cb)
 end
 
 function Job:run()
-  local child = spawn('hooky', {self.hook,self.payload})
+  local child = spawn(self.hooky, {self.hook,self.payload})
   local response = {}
 
   -- eat up all chunks of the response
