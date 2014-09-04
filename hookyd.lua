@@ -73,7 +73,12 @@ function validate(config)
 	local passed = true
 
 	if not config.hooky then
-		print("hooky executable is missing in config file")
+		print("'hooky' parameter is missing in config file")
+		passed = false
+	end
+
+	if not config.port then
+		print("'port' parameter is missing in config file")
 		passed = false
 	end
 
@@ -87,7 +92,7 @@ fs.readFile("/opt/local/etc/hookyd/hookyd.conf",function(err,data)
 		if validate(lever.user) then
 
 			-- start server
-			lever:listen(8080)
+			lever:listen(lever.user.port,lever.user.ip)
 
 			process:on('error', function(err)
 				p("global error: ",{err=err})
