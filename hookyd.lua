@@ -52,7 +52,7 @@ function run_hook(req,res)
 	    Job.attach(lever.user.hooky,req.env.hook_id,payload,function(code,body)
 
 	      -- send response
-	      local response = JSON.stringify({code = code, body = body})
+	      local response = JSON.stringify({exit = code, out = body})
 	      res:writeHead(200, {
 	        ["Content-Type"] = "application/json",
 	        ["Content-Length"] = #response
