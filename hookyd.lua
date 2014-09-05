@@ -28,7 +28,7 @@ end
 function run_hook(req,res)
   local chunks = {}
 
-  fs.exists(lever.user.hook_dir .. "/" .. req.env.hook_id,function(exists,err)
+  fs.exists(lever.user.hook_dir .. "/" .. req.env.hook_id .".rb",function(exists,err)
   	if not exists then
   		res:writeHead(404, {})
       res:finish()
