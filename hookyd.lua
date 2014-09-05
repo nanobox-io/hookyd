@@ -28,30 +28,32 @@ end
 function run_hook(req,res)
   local chunks = {}
 
-  fs.exists(lever.user.hook_dir .. "/" .. req.env.hook_id .. ".rb",function(err,exists)
-  	if not exists then
-  		res:writeHead(404, {})
-      res:finish()
-  	else
-		  -- eat up the entire body
-		  req:on('data', function (chunk, len)
-		  	if chunks then
-				  chunks[#chunks + 1] = chunk
-				end
-		  end)
+  -- eat up the entire body
+  req:on('data', function (chunk, len)
+  	if chunks then
+		  chunks[#chunks + 1] = chunk
+		end
+  end)
 
-		  -- on error clear out all chunks stored
-		  req:once('error',function ()
-		    chunks = nil
-		  end)
+  -- on error clear out all chunks stored
+  req:once('error',function ()
+    chunks = nil
+  end)
 
-		  -- request has completely been read in
-		  req:once('end', function ()
-		  	if chunks then
+  -- request has completely been read in
+  req:once('end', function ()
+  	if chunks then
 
+  		-- we need to make sure the hook exists that we are trying to run
+  		fs.exists(lever.user.hook_dir .. "/" .. req.env.hook_id .. ".rb",function(err,exists)
+
+  			if not exists then
+		  		res:writeHead(404, {})
+		      res:finish()
+
+		  	else
 			    -- combine all chunks into the payload
 			    local payload = table.concat(chunks, "")
-			    chunks = nil;
 
 			    -- attach to a job
 			    Job.attach(lever.user.hooky,req.env.hook_id,payload,function(code,body)
@@ -64,8 +66,12 @@ function run_hook(req,res)
 			      })
 			      res:finish(response)
 			    end)
-			  end
-			end)
+		    end
+
+		    -- clear out chunks so that it can be gc'd
+		    chunks = nil;
+
+		  end)
 		end
   end)
 end
