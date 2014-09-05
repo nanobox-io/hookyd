@@ -10,6 +10,7 @@
 ---------------------------------------------------------------------
 
 local http = require('http')
+local querystring = require('querystring')
 
 local Lever = {}
 Lever.__index = Lever
@@ -84,7 +85,9 @@ function Lever:add_route(method,path,callback)
 
 end
 
-function Lever:find_route(method,url)
+
+-- private function
+function find_route(lever,method,url)
 	-- print("method",method)
 	local fields = {}
 	for c in url:gmatch("/[^/]*") do
@@ -92,7 +95,7 @@ function Lever:find_route(method,url)
   end
   fields[#fields + 1] = "/" .. method
 
-  local node = self.cbs
+  local node = lever.cbs
   local elem
   local matches = {}
 
@@ -137,12 +140,19 @@ function Lever:listen(port,ip)
 	    -- print("Error while sending a response: " .. msg)
 	  end)
 
-	  local callback, env = lever:find_route(req.method,req.url)
+      local path,qs = req.url:match("([^?]+)(|?(.*))")
+	  local callback, env = find_route(lever,req.method,path)
 	  
 	  if callback then
+        if qs then
+            req.qs = querystring.parse(qs:sub(2,qs:len()))
+        else
+            req.qs = {}
+        end
 	  	req.env = env
 	    callback(req,res)
 	  else
+        print("404");
 	    res:writeHead(404,{})
 	    res:finish()
 	  end
