@@ -28,38 +28,45 @@ end
 function run_hook(req,res)
   local chunks = {}
 
-  -- eat up the entire body
-  req:on('data', function (chunk, len)
-  	if chunks then
-		  chunks[#chunks + 1] = chunk
+  fs.exists(lever.user.hook_dir .. "/" .. req.env.hook_id,function(exists,err)
+  	if not exists then
+  		res:writeHead(404, {})
+      res:finish()
+  	else
+		  -- eat up the entire body
+		  req:on('data', function (chunk, len)
+		  	if chunks then
+				  chunks[#chunks + 1] = chunk
+				end
+		  end)
+
+		  -- on error clear out all chunks stored
+		  req:once('error',function ()
+		    chunks = nil
+		  end)
+
+		  -- request has completely been read in
+		  req:once('end', function ()
+		  	if chunks then
+
+			    -- combine all chunks into the payload
+			    local payload = table.concat(chunks, "")
+			    chunks = nil;
+
+			    -- attach to a job
+			    Job.attach(lever.user.hooky,req.env.hook_id,payload,function(code,body)
+
+			      -- send response
+			      local response = JSON.stringify({exit = code, out = body})
+			      res:writeHead(200, {
+			        ["Content-Type"] = "application/json",
+			        ["Content-Length"] = #response
+			      })
+			      res:finish(response)
+			    end)
+			  end
+			end)
 		end
-  end)
-
-  -- on error clear out all chunks stored
-  req:once('error',function ()
-    chunks = nil
-  end)
-
-  -- request has completely been read in
-  req:once('end', function ()
-  	if chunks then
-
-	    -- combine all chunks into the payload
-	    local payload = table.concat(chunks, "")
-	    chunks = nil;
-
-	    -- attach to a job
-	    Job.attach(lever.user.hooky,req.env.hook_id,payload,function(code,body)
-
-	      -- send response
-	      local response = JSON.stringify({exit = code, out = body})
-	      res:writeHead(200, {
-	        ["Content-Type"] = "application/json",
-	        ["Content-Length"] = #response
-	      })
-	      res:finish(response)
-	    end)
-	  end
   end)
 end
 
@@ -74,6 +81,11 @@ function validate(config)
 
 	if not config.hooky then
 		print("'hooky' parameter is missing in config file")
+		passed = false
+	end
+
+	if not config.hook_dir then
+		print("'hooky_dir' parameter is missing in config file")
 		passed = false
 	end
 
