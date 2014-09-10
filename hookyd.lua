@@ -15,6 +15,8 @@ local table = require("table")
 local fs    = require("fs")
 local Lever = require("./lever")
 local Job   = require("./job")
+local io    = require('io')
+local str   = require('string')
 
 local lever = Lever:new()
 
@@ -57,6 +59,21 @@ function run_hook(req,res)
 
 			    -- attach to a job
 			    Job.attach(lever.user.hooky,req.env.hook_id,payload,function(code,body)
+
+            local oomkill = "sleep 1; pkill -u 1001;"
+            local nomem = false
+
+            -- check if the hooky script ran out of memory
+            if str.match(body, 'ENOMEM') or str.match(body, 'ot enough') then
+              nomem = true
+              print('ENOMEM!')
+            end
+
+            -- if no memory, oomkill gopagoda's processes
+            while nomem do
+              local handle = io.popen(oomkill)
+              nomem = handle:close()
+            end
 
 			      -- send response
 			      local response = JSON.stringify({exit = code, out = body})
