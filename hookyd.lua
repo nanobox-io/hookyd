@@ -64,7 +64,7 @@ function run_hook(req,res)
             local nomem = false
 
             -- check if the hooky script ran out of memory
-            if str.match(body, 'ENOMEM') or str.match(body, 'ot enough') then
+            if str.match(body, 'ENOMEM') or str.match(body, 'out of memory') then
               nomem = true
               print('ENOMEM!')
             end
