@@ -11,38 +11,45 @@
 
 local http = require('http')
 local querystring = require('querystring')
+local table = require('table')
 
 local Lever = {}
 Lever.__index = Lever
 
 function Lever.new ()
-	local self = {
-		cbs = {}}
+	local self = 
+        {cbs = {}
+        ,middleware = {}}
     self = setmetatable(self, Lever)
     return self
 end
 
-function Lever:get(path,callback)
-    self:add_route('/GET',path,callback)
+function Lever:add_middleware(middleware)
+	self.middleware[#self.middleware +1] = middleware
 end
 
-function Lever:put(path,callback)
-    self:add_route('/PUT',path,callback)
+function Lever:get(path,...)
+    self:add_route('/GET',path,...)
 end
 
-function Lever:post(path,callback)
-    self:add_route('/POST',path,callback)
+function Lever:put(path,...)
+    self:add_route('/PUT',path,...)
 end
 
-function Lever:delete(path,callback)
-    self:add_route('/DELETE',path,callback)
+function Lever:post(path,...)
+    self:add_route('/POST',path,...)
 end
 
-function Lever:all(path,callback)
-    self:add_route('?',path,callback)
+function Lever:delete(path,...)
+    self:add_route('/DELETE',path,...)
 end
 
-function Lever:add_route(method,path,callback)
+function Lever:all(path,...)
+    self:add_route('?',path,...)
+end
+
+function Lever:add_route(method,path,...)
+    local stack = {...}
     local cbs = self.cbs
     local fields = {}
     local matches = {}
@@ -79,7 +86,7 @@ function Lever:add_route(method,path,callback)
     if method == '?' then
     	matches[#matches + 1] = "priv__method"
     end
-    node.callback = callback
+    node.stack = stack
     node.matches = matches
 
 
@@ -120,12 +127,29 @@ function find_route(lever,method,url)
     		-- print ("adding",node.matches[index],index,matches[index])
     		env[node.matches[index]] = matches[index]
     	end
-    	return node.callback, env
+    	return node.stack, env
     else
     	-- print("didn't match...")
     	return nil
     end
 
+end
+
+function handle_stack (stack,req,res)
+  local step = stack[1]
+  if step then
+    table.remove(stack,1)
+    step(req,res,function()
+    	handle_stack(stack,req,res)
+  	end)
+  end
+end
+
+function concat(t1,t2)
+    for i=1,#t2 do
+        t1[#t1+1] = t2[i]
+    end
+    return t1
 end
 
 function Lever:listen(port,ip)
@@ -141,21 +165,29 @@ function Lever:listen(port,ip)
 	  end)
 
       local path,qs = req.url:match("([^?]+)(|?(.*))")
-	  local callback, env = find_route(lever,req.method,path)
+	  local route_stack, env = find_route(lever,req.method,path)
 	  
-	  if callback then
+	  local stack = concat({},self.middleware);
+	  
+	  if route_stack then
         if qs then
             req.qs = querystring.parse(qs:sub(2,qs:len()))
         else
             req.qs = {}
         end
-	  	req.env = env
-	    callback(req,res)
+		  	
+		  	req.env = env
+		  	req.user = {}
+
+        stack = concat(stack,route_stack);
 	  else
-        print("404");
-	    res:writeHead(404,{})
-	    res:finish()
+	  	stack[#stack +1] = function(req,res,pass)
+		    res:writeHead(404,{})
+		    res:finish()
+		  end
 	  end
+      
+      handle_stack(stack,req,res)
 
 	end)
 	print("Server listening at http://"..ip..":"..port.."/")

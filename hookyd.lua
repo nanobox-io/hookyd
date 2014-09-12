@@ -26,7 +26,25 @@ end
 
 -- run or attach to a running hook
 function run_hook(req,res)
-  local chunks = {}
+  
+	  -- combine all chunks into the payload
+	  local payload = table.concat(req.user.chunks, "")
+
+	  -- attach to a job
+	  Job.attach(lever.user.hooky,req.env.hook_id,payload,function(code,body)
+
+	    -- send response
+	    local response = JSON.stringify({exit = code, out = body})
+	    res:writeHead(200, {
+	      ["Content-Type"] = "application/json",
+	      ["Content-Length"] = #response
+	    })
+	    res:finish(response)
+	  end)
+end
+
+function capture_body(req,res,pass)
+	local chunks = {}
 
   -- eat up the entire body
   req:on('data', function (chunk, len)
@@ -42,45 +60,37 @@ function run_hook(req,res)
 
   -- request has completely been read in
   req:once('end', function ()
-  	if chunks then
-
-  		-- we need to make sure the hook exists that we are trying to run
-  		fs.exists(lever.user.hook_dir .. "/" .. req.env.hook_id .. ".rb",function(err,exists)
-
-  			if not exists then
-		  		res:writeHead(404, {})
-		      res:finish()
-
-		  	else
-			    -- combine all chunks into the payload
-			    local payload = table.concat(chunks, "")
-
-			    -- attach to a job
-			    Job.attach(lever.user.hooky,req.env.hook_id,payload,function(code,body)
-
-			      -- send response
-			      local response = JSON.stringify({exit = code, out = body})
-			      res:writeHead(200, {
-			        ["Content-Type"] = "application/json",
-			        ["Content-Length"] = #response
-			      })
-			      res:finish(response)
-			    end)
-		    end
-
-		    -- clear out chunks so that it can be gc'd
-		    chunks = nil;
-
-		  end)
-		end
+  	req.user.chunks = chunks
+  	chunks = nil
+  	pass()
   end)
+end
+
+function ensure_hook(req,res,pass)
+	-- we need to make sure the hook exists that we are trying to run
+	fs.exists(lever.user.hook_dir .. "/" .. req.env.hook_id .. ".rb",function(err,exists)
+
+		if not exists then
+			res:writeHead(404, {})
+	    res:finish()
+		else
+			pass()
+		end
+	end)
 end
 
 
 -- routing endpoints
 lever:all("/ping",ping)
-lever:post("/hooks/?hook_id",run_hook)
-lever:put("/hooks/?hook_id",run_hook)
+lever:post("/hooks/?hook_id",capture_body,ensure_hook,run_hook)
+lever:put("/hooks/?hook_id",capture_body,ensure_hook,run_hook)
+
+function logger(req,res,pass)
+	p("new request ",req.url)
+	pass()
+end
+
+lever:add_middleware(logger)
 
 function validate(config)
 	local passed = true
