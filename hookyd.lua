@@ -21,6 +21,9 @@ local Job   = require("./job")
 
 local lever = Lever:new()
 
+-- variable for tracking last run hook
+local last_job = {code = 0, hook = '', body = ''}
+
 -- ping pong endpoint
 function ping(req,res)
   res:writeHead(200,{})
@@ -30,42 +33,62 @@ end
 -- pkill endpoint
 function pkill(req,res,pass)
 
-	-- use the job attach to run a command that is not a hook
-	Job.attach("pkill","-u","1001",function(code,body)
+  -- use the job attach to run a command that is not a hook
+  Job.attach("pkill","-u","1001",function(code,body)
 
-		-- pkill returns 1 when no more processes can be killed
-		if code == 0 then
+    -- pkill returns 1 when no more processes can be killed
+    if code == 0 then
 
-			-- give the system a bit of time to spawn new processes
-			timer.setTimeout(1000,pkill,req,res,pass)
-		else
+      -- give the system a bit of time to spawn new processes
+      timer.setTimeout(1000,pkill,req,res,pass)
+    else
 
-			-- send a response that the pkill was sucessfull
-			local response = JSON.stringify({exit = code, out = body})
-	      res:writeHead(200, {
-	        ["Content-Type"] = "application/json",
-	        ["Content-Length"] = #response
-	      })
-	      res:finish(response)
-			pass()
-		end
-	end)
+      -- send a response that the pkill was sucessfull
+      local response = JSON.stringify({exit = code, out = body})
+        res:writeHead(200, {
+          ["Content-Type"] = "application/json",
+          ["Content-Length"] = #response
+        })
+        res:finish(response)
+      pass()
+    end
+  end)
 end
 
 -- run or attach to a running hook
 function run_hook(req,res)
-  
+
+  -- check if hook finished previously without non-critical error
+  if last_job.hook == req.env.hook_id then
+    p(os.date("%c"),"{ last_job used }",req.url)
+
+    -- report the unreported
+    local response = JSON.stringify({exit = last_job.code, out = last_job.body})
+    res:writeHead(200, {
+      ["Content-Type"] = "application/json",
+      ["Content-Length"] = #response
+    })
+    res:finish(response)
+
+    last_job = {code = 0, hook = '', body = ''}
+  else
     -- combine all chunks into the payload
     local payload = table.concat(req.user.chunks, "")
+
+    last_job = {code = 0, hook = '', body = ''}
 
     -- attach to a job
     Job.attach(lever.user.hooky,req.env.hook_id,payload,function(code,body)
 
-      
       -- check if the hooky script ran out of memory
       if str.match(body, 'ENOMEM') or str.match(body, 'out of memory') then
         code = 3
       end
+
+      -- set status in case athena disconnected
+      last_job.hook = req.env.hook_id
+      last_job.code = code
+      last_job.body = body
 
       -- send response
       local response = JSON.stringify({exit = code, out = body})
@@ -75,6 +98,7 @@ function run_hook(req,res)
       })
       res:finish(response)
     end)
+  end
 end
 
 function capture_body(req,res,pass)
@@ -105,6 +129,8 @@ function ensure_hook(req,res,pass)
   fs.exists(lever.user.hook_dir .. "/" .. req.env.hook_id .. ".rb",function(err,exists)
 
     if not exists then
+      -- update the last_job
+      last_job = {code = 0, hook = req.env.hook_id, body = ''}
       res:writeHead(404, {})
       res:finish()
     else
