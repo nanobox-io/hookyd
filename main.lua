@@ -14,9 +14,12 @@ local fs = require('coro-fs')
 local sleep = require('coro-sleep')
 local json = require('json')
 local uv = require('uv')
-local weblit = require('weblit')
+local weblit = require('weblit-app')
 
 local job = require('./lib/job')
+local function log(...)
+	print(os.date("%x %X"),...)
+end
 
 coroutine.wrap(function()
 
@@ -27,7 +30,7 @@ coroutine.wrap(function()
 
 	local data = assert(fs.readFile(default_opts.config))
 	local config = json.parse(data)
-	
+
 	assert(config.hooky, '"hooky" parameter is missing in config file')
 	assert(config.hook_dir, '"hook_dir" parameter is missing in config file')
 	assert(config.port, '"port" parameter is missing in config file')
@@ -43,7 +46,7 @@ coroutine.wrap(function()
 	weblit
 		.use(require('weblit-auto-headers'))
 		.use(function(req,res,go)
-			p('got request',req.path)
+			log(req.path)
 			go()
 		end)
 
@@ -65,6 +68,17 @@ coroutine.wrap(function()
 		end)
 
 		.route({path = '/hooks/:hook_id'},function(req,res)
+			local hook = table.concat(
+				{config.hook_dir
+				,'/'
+				,req.params.hook_id
+				,'.rb'})
+
+			if fs.stat(hook) == nil then
+				-- returns 404 by default
+				return
+			end
+
 			if last_job and last_job.hook == req.params.hook_id then
 				-- send off the results of the last job run
 				local data = json.stringify(
@@ -76,7 +90,7 @@ coroutine.wrap(function()
 			else
 				local hook_id = req.params.hook_id
 				-- create or attach to a job
-				local code, body = job.attach(config.hookit, hook_id,
+				local body, code = job.attach(config.hooky, hook_id,
 					req.body)
 
 				if body:match('ENOMEM') or body:match('out of memory') then
@@ -92,7 +106,7 @@ coroutine.wrap(function()
 					{exit = code
 					,out = body})
 				respond(res, data)
-				
+
 			end
 		end)
 		.bind({port = config.port, ip = config.host})

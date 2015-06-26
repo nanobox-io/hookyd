@@ -24,8 +24,11 @@ return
   ,description = 
   	"A remote management plane for executing machine configuration hooks"
   ,dependencies = 
-    {"creationix/weblit-app@0.2.6-1"
+    {"luvit/require@1.2.0"
+    ,"luvit/pretty-print@1.0.2-1"
+    ,"creationix/weblit-app@0.2.6-1"
     ,"creationix/weblit-auto-headers@0.1.2-1"
+    ,"creationix/coro-fs@1.3.0"
     ,"creationix/coro-split@0.1.1"
     ,"creationix/coro-spawn@0.2.1"
     ,"pagodabox/coro-sleep@0.1.0"

@@ -54,7 +54,7 @@ function exports.attach(cmd, arg, payload)
 		for _, waiter in pairs(waiters) do
 			coroutine.resume(waiter, output, code)
 		end
-		
+
 		running_jobs[arg] = nil
 		return output, code
 	end
